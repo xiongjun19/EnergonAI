@@ -50,6 +50,7 @@ def main(tokenizer, engine, args):
         print("input is: ")
         print(input_text)
         inputs = tokenizer(input_text, padding="max_length", max_length=512)
+        print(inputs)
         inputs['max_tokens'] = args.max_tokens
         inputs['top_k'] = 50
         inputs['top_p'] = 0.5
@@ -60,6 +61,14 @@ def main(tokenizer, engine, args):
         output = tokenizer.decode(output, skip_special_tokens=True)
         print("output is: ")
         print(output)
+        uid = id(input_text)
+        engine.submit(uid, inputs)
+        output = asyncio.run(engine.wait(uid))
+        output = tokenizer.decode(output, skip_special_tokens=True)
+        print("output2  is: ")
+        print(output)
+
+
         return output
     finally:
         engine.shutdown()
