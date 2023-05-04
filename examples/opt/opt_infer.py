@@ -49,7 +49,7 @@ def main(tokenizer, engine, args):
         input_text = 'Question: Where were the 2004 Olympics held?\nAnswer: Athens, Greece\n\nQuestion: What is the longest river on the earth?\nAnswer:'
         print("input is: ")
         print(input_text)
-        inputs = tokenizer(input_text, truncation=True, max_length=512)
+        inputs = tokenizer(input_text, padding="max_length", max_length=512)
         inputs['max_tokens'] = args.max_tokens
         inputs['top_k'] = 50
         inputs['top_p'] = 0.5
