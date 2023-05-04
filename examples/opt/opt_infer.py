@@ -2,6 +2,7 @@ import argparse
 import logging
 import random
 import asyncio
+import torch
 from typing import Optional
 
 from energonai import QueueFullError, launch_engine
@@ -50,28 +51,77 @@ def main(tokenizer, engine, args):
         print("input is: ")
         print(input_text)
         inputs = tokenizer(input_text, padding="max_length", max_length=512)
-        print(inputs)
-        inputs['max_tokens'] = args.max_tokens
         inputs['top_k'] = 50
         inputs['top_p'] = 0.5
         inputs['temperature'] = 0.7
-        uid = id(input_text)
-        engine.submit(uid, inputs)
-        output = asyncio.run(engine.wait(uid))
-        output = tokenizer.decode(output, skip_special_tokens=True)
-        print("output is: ")
-        print(output)
-        uid = id(input_text)
-        engine.submit(uid, inputs)
-        output = asyncio.run(engine.wait(uid))
-        output = tokenizer.decode(output, skip_special_tokens=True)
-        print("output2  is: ")
-        print(output)
+        warm_res = _warm_up(input_text, inputs, engine, args, 1)
+        torch.cuda.synchronize()
+        t_start = torch.cuda.Event(enable_timing=True)
+        t_end = torch.cuda.Event(enable_timing=True)
+        t_start.record()
+        _warm_up(input_text, inputs, engine, args, 2)
+        t_end.record()
+        torch.cuda.synchronize()
+        prefill_time = t_start.elapsed_time(t_end) / 1000 # convert mill to sec
+        print(f"prefill_time is {prefill_time}")
+        print("warm_res: ", warm_res)
 
+        _gen_fn(input_text, inputs, engine, args, 1)
+        torch.cuda.synchronize()
 
-        return output
+        t_start = torch.cuda.Event(enable_timing=True)
+        t_end = torch.cuda.Event(enable_timing=True)
+        t_start.record()
+        gen_res = _gen_fn(input_text, inputs, engine, args, 2)
+        t_end.record()
+        torch.cuda.synchronize()
+        gen_time = t_start.elapsed_time(t_end) / 1000 # convert mill to sec
+        dec_time = gen_time - prefill_time
+        context_len = 512
+        cal_and_save_info(args.log_file, 1, context_len, args.max_tokens,
+                gen_time, dec_time, prefill_time)
+
+        return gen_res
     finally:
         engine.shutdown()
+
+
+def cal_and_save_info(f_path, bs, context_len, output_len,
+        gen_time, dec_time, prefill_time):
+    gen_tho = cal_tho(bs, 1, output_len, gen_time)
+    dec_tho = cal_tho(bs, 1, output_len, dec_time)
+    with open(f_path, 'w') as out_:
+        _dic = {
+                'prefill_lat':  prefill_time,
+                'dec_lat': dec_time,
+                'dec_tho': dec_tho,
+                'gen_lat': gen_time,
+                'gen_tho': gen_tho,
+                }
+        json.dump(_dic, out_)
+
+
+def cal_tho(bs, num_bs, pred_len, lat):
+    tho = bs * num_bs * (pred_len - 1) / lat
+    return tho
+
+
+def _warm_up(input_text, inputs, engine, args, try_time):
+    inputs['max_tokens'] = 1
+    uid = id(input_text + str(1) + str(try_time))
+    engine.submit(uid, inputs)
+    output = asyncio.run(engine.wait(uid))
+    output = tokenizer.decode(output, skip_special_tokens=True)
+    return output
+
+
+def _gen_fn(input_text, inputs, engine, args, try_time):
+    inputs['max_tokens'] = args.max_tokens
+    uid = id(input_text + str(args.max_tokens) + str(try_time))
+    engine.submit(uid, inputs)
+    output = asyncio.run(engine.wait(uid))
+    output = tokenizer.decode(output, skip_special_tokens=True)
+    return output
 
 
 if __name__ == '__main__':
@@ -90,6 +140,8 @@ if __name__ == '__main__':
     parser.add_argument('--cache_size', type=int, default=0)
     parser.add_argument('--cache_list_size', type=int, default=1)
     parser.add_argument('--max_tokens', type=int, default=1)
+    parser.add_argument("--log-file", type=str, default="auto")
+
     args = parser.parse_args()
     print_args(args)
     model_kwargs = {}
