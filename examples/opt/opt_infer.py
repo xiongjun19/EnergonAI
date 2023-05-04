@@ -1,6 +1,7 @@
 import argparse
 import logging
 import random
+import asyncio
 from typing import Optional
 
 from energonai import QueueFullError, launch_engine
@@ -43,20 +44,19 @@ FIXED_CACHE_KEYS = [
     ("English: I am happy today.\nChinese: 我今天很开心。\n\nEnglish: I am going to play basketball.\nChinese: 我一会去打篮球。\n\nEnglish: Let's celebrate our anniversary.\nChinese:", 64)
 ]
 
-
 def main(tokenizer, engine, args):
     try:
         input_text = 'Question: Where were the 2004 Olympics held?\nAnswer: Athens, Greece\n\nQuestion: What is the longest river on the earth?\nAnswer:'
         print("input is: ")
         print(input_text)
-        inputs = tokenizer(data.prompt, truncation=True, max_length=512)
+        inputs = tokenizer(input_text, truncation=True, max_length=512)
         inputs['max_tokens'] = args.max_tokens
         inputs['top_k'] = 50
         inputs['top_p'] = 0.5
         inputs['temperature'] = 0.7
         uid = id(input_text)
         engine.submit(uid, inputs)
-        output = await engine.wait(uid)
+        output = asyncio.run(engine.wait(uid))
         output = tokenizer.decode(output, skip_special_tokens=True)
         print("output is: ")
         print(output)
@@ -99,5 +99,6 @@ if __name__ == '__main__':
                            pipe_size=args.pipe_size,
                            queue_size=args.queue_size,
                            **model_kwargs)
-    main(tokenizer, engine, args)
+    outputs = main(tokenizer, engine, args)
+    print("done")
 
