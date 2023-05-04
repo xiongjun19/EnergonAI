@@ -48,7 +48,7 @@ class Worker:
         self.tp_rank = gpc.get_local_rank(ParallelMode.PARALLEL_1D)
         self.pp_rank = gpc.get_local_rank(ParallelMode.PIPELINE) if gpc.is_initialized(ParallelMode.PIPELINE) else 0
 
-        ForkedPdb().set_trace()
+        # ForkedPdb().set_trace()
         self.model: nn.Module = model_fn(**model_kwargs)
         self.model = self.model.cuda()
 
