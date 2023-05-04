@@ -16,6 +16,25 @@ from .task import TaskEntry
 from .utils import Terminator, build_device_maps
 
 
+import sys
+import pdb
+
+class ForkedPdb(pdb.Pdb):
+    """A Pdb subclass that may be used
+    from a forked multiprocessing child
+
+    """
+    def interaction(self, *args, **kwargs):
+        _stdin = sys.stdin
+        try:
+            sys.stdin = open('/dev/stdin')
+            pdb.Pdb.interaction(self, *args, **kwargs)
+        finally:
+            sys.stdin = _stdin
+
+
+
+
 class Worker:
     def __init__(self, rank: int, tp_world_size: int, pp_world_size: int, master_host: str, master_port: int, rpc_port: int, n_proc_per_node: int,
                  model_fn: Callable[[Any], nn.Module], pipe_size: int = 1, rpc_disable_shm: bool = True, **model_kwargs: Any) -> None:
@@ -29,7 +48,9 @@ class Worker:
         self.tp_rank = gpc.get_local_rank(ParallelMode.PARALLEL_1D)
         self.pp_rank = gpc.get_local_rank(ParallelMode.PIPELINE) if gpc.is_initialized(ParallelMode.PIPELINE) else 0
 
-        self.model: nn.Module = model_fn(**model_kwargs).cuda()
+        ForkedPdb().set_trace()
+        self.model: nn.Module = model_fn(**model_kwargs)
+        self.model = self.model.cuda()
 
         self.rpc_name = f'worker{self.global_rank}'
         rpc_options = {}

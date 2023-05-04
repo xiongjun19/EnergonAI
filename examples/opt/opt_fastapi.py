@@ -112,6 +112,7 @@ if __name__ == '__main__':
         cache = ListCache(args.cache_size, args.cache_list_size, fixed_keys=FIXED_CACHE_KEYS)
     else:
         cache = None
+    # import ipdb; ipdb.set_trace()
     engine = launch_engine(args.tp, 1, args.master_host, args.master_port, args.rpc_port, get_model_fn(args.model),
                            batch_manager=BatchManagerForGeneration(max_batch_size=args.max_batch_size,
                                                                    pad_token_id=tokenizer.pad_token_id),

@@ -1,0 +1,9 @@
+fastapi~=0.75.1
+uvicorn==0.14
+redis
+transformers
+readerwriterlock
+colossalai
+omegaconf
+prometheus-fastapi-instrumentator
+
