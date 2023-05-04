@@ -3,6 +3,7 @@ import logging
 import random
 import asyncio
 import torch
+import json
 from typing import Optional
 
 from energonai import QueueFullError, launch_engine
